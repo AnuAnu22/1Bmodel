@@ -5,7 +5,6 @@ Scaled to ~1B dense parameters. Swap in TestConfig (defined at the bottom)
 for unit-test runs that need to be fast on CPU.
 """
 
-from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
@@ -55,7 +54,7 @@ class ModelConfig:
     dropout_rate: float = 0.0       # 0 for pre-training; set for fine-tuning
 
     # ── Layer-type schedule ───────────────────────────────────────────────────
-    def get_layer_types(self) -> List[str]:
+    def get_layer_types(self) -> list:
         """
         Returns a list of 'csa' or 'hca' per layer, following the V4 pattern:
           - Layers 0–1 : HCA  (no Lightning Indexer; long-range dense compression)
