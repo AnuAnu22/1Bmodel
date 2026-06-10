@@ -61,9 +61,9 @@ LOG_FILE       = DRIVE_DIR / "train_log.jsonl"
 CHART_FILE     = DRIVE_DIR / "training_curves.png"
 CKPT_DIR       = DRIVE_DIR / "checkpoints"
 
-SEQ_LEN        = 1024
-BATCH_SIZE     = 32        # global; each step trains on BATCH_SIZE × SEQ_LEN tokens
-GRAD_ACCUM     = 4         # micro-batches per optimizer step
+SEQ_LEN        = 512
+BATCH_SIZE     = 16        # global; each step trains on BATCH_SIZE × SEQ_LEN tokens
+GRAD_ACCUM     = 8         # micro-batches per optimizer step
 MICRO_BATCH    = BATCH_SIZE // GRAD_ACCUM   # = 8 per micro-step
 
 TOTAL_TOKENS   = 20_000_000_000
