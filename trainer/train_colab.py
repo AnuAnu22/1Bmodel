@@ -49,8 +49,8 @@ sys.path.insert(0, str(ROOT))
 
 from config import ModelConfig
 from model.model import DeepSeek1B
-from train.muon import muon_with_adamw_fallback, label_params
-from train.trainer import cross_entropy_loss
+from trainer.muon import muon_with_adamw_fallback, label_params
+from trainer.trainer import cross_entropy_loss
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIG

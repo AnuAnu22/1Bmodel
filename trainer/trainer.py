@@ -25,7 +25,7 @@ from flax.training import train_state
 
 from config import ModelConfig
 from model.model import DeepSeek1B
-from train.muon import muon_with_adamw_fallback, label_params
+from trainer.muon import muon_with_adamw_fallback, label_params
 
 
 # ── Loss ──────────────────────────────────────────────────────────────────────
