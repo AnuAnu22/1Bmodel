@@ -26,7 +26,7 @@ pmap / sharding (4-core) is not added here — get single-core stable first,
 then add it for ~4× throughput improvement.
 """
 
-from __future__ import annotations
+
 import os, sys, time, json, math, queue, threading, shutil, itertools
 from pathlib import Path
 from typing import Dict, Any, Iterator
