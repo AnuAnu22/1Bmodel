@@ -146,7 +146,7 @@ def init_train_state(model: DeepSeek1B, rng: jax.Array):
     total  = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     tx     = make_optimizer(params, total)
     state = train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
-     return replicate(state)
+    return replicate(state)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TRAIN STEP  (fixes 2, 3, 7)
