@@ -28,6 +28,7 @@ then add it for ~4× throughput improvement.
 
 
 import os, sys, time, json, math, queue, threading, shutil, itertools
+from flax.jax_utils import replicate, unreplicate
 from pathlib import Path
 from typing import Dict, Any, Iterator
 from functools import partial
@@ -35,6 +36,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import numpy as np
+import queue, threading
 import optax
 import orbax.checkpoint as ocp
 import matplotlib
@@ -62,9 +64,9 @@ LOG_FILE       = DRIVE_DIR / "train_log.jsonl"
 CHART_FILE     = DRIVE_DIR / "training_curves.png"
 CKPT_DIR       = DRIVE_DIR / "checkpoints"
 
-SEQ_LEN        = 512
+SEQ_LEN        = 1024
 BATCH_SIZE     = 16        # global; each step trains on BATCH_SIZE × SEQ_LEN tokens
-GRAD_ACCUM     = 8         # micro-batches per optimizer step
+GRAD_ACCUM     = 4         # micro-batches per optimizer step
 MICRO_BATCH    = BATCH_SIZE // GRAD_ACCUM   # = 8 per micro-step
 
 TOTAL_TOKENS   = 20_000_000_000
@@ -143,16 +145,17 @@ def init_train_state(model: DeepSeek1B, rng: jax.Array):
     params = model.init(rng, dummy)
     total  = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     tx     = make_optimizer(params, total)
-    return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
+    state = train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
+     return replicate(state)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TRAIN STEP  (fixes 2, 3, 7)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@partial(jax.jit, donate_argnums=(0,))
+@partial(jax.pmap, axis_name='devices', donate_argnums=(0,))
 def train_step(
     state,
-    batch: jnp.ndarray,   # [GRAD_ACCUM, MICRO_BATCH, SEQ_LEN+1]
+    batch: jnp.ndarray,   # [NUM_DEVICES, GRAD_ACCUM, MICRO_BATCH//NUM_DEVICES, SEQ_LEN+1]
     rng: jax.Array,
 ) -> tuple:
     """
@@ -190,6 +193,8 @@ def train_step(
     def accumulate(carry, xs):
         micro_ids, micro_rng = xs
         (loss, _), grads = grad_fn(state.params, micro_ids, micro_rng)
+        grads = jax.lax.pmean(grads, axis_name='devices')
+        loss  = jax.lax.pmean(loss,  axis_name='devices')
         # carry: sum of gradients so far; XLA reuses this buffer
         new_carry = jax.tree_util.tree_map(jnp.add, carry, grads)
         return new_carry, loss
@@ -229,7 +234,7 @@ def save_checkpoint(state, step: int, tokens_seen: int,
     tmp   = final.with_suffix(".tmp")
 
     ckptr = ocp.PyTreeCheckpointer()
-    ckptr.save(str(tmp), state)
+    ckptr.save(str(tmp), unreplicate(state))
 
     meta = {"step": step, "tokens_seen": tokens_seen,
             "docs_seen": docs_seen, "ts": time.time()}
@@ -279,6 +284,7 @@ def load_latest_checkpoint(model: DeepSeek1B, rng: jax.Array):
     base  = init_train_state(model, rng)
     ckptr = ocp.PyTreeCheckpointer()
     state = ckptr.restore(str(latest), item=base)
+    state = replicate(state)
 
     total = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     # LR at restored step — just for logging; schedule comes from opt_state.count
@@ -371,7 +377,7 @@ def make_batch_stream(skip_docs: int = 0) -> Iterator[tuple[dict, int]]:
     for doc_idx, seq in _token_stream(mixed, tokenizer):
         buf.append(seq)
         if len(buf) == BATCH_SIZE:
-            arr = np.stack(buf).reshape(GRAD_ACCUM, MICRO_BATCH, SEQ_LEN + 1)
+            arr = np.stack(buf).reshape(NUM_DEVICES, GRAD_ACCUM, MICRO_BATCH // NUM_DEVICES, SEQ_LEN + 1)
             yield {"input_ids": jnp.array(arr)}, skip_docs + doc_idx
             buf = []
 
@@ -464,7 +470,7 @@ def main():
     # Force JIT compilation on a dummy batch before timing starts.
     print("Compiling train_step (first call triggers XLA compilation)...")
     t_compile = time.time()
-    dummy_batch = jnp.zeros((GRAD_ACCUM, MICRO_BATCH, SEQ_LEN + 1), dtype=jnp.int32)
+    dummy_batch = jnp.zeros((NUM_DEVICES, GRAD_ACCUM, MICRO_BATCH // NUM_DEVICES, SEQ_LEN + 1), dtype=jnp.int32)
     _state, _ = train_step(state, dummy_batch, rng)
     # Don't use _state — just warm up the compiler; state is donated so use original
     # Re-init state since donation invalidated it
@@ -481,12 +487,13 @@ def main():
         if step >= total_steps:
             break
 
-        state, metrics = train_step(state, batch["input_ids"], rng)
+        state, metrics = train_step(state, batch["input_ids"], replicate(rng))
+        loss      = float(unreplicate(metrics["loss"]))
+        grad_norm = float(unreplicate(metrics["grad_norm"]))
         step        += 1
         tokens_seen += BATCH_SIZE * SEQ_LEN
 
-        loss      = float(metrics["loss"])
-        grad_norm = float(metrics["grad_norm"])
+        
         loss_window.append(loss)
         if len(loss_window) > 100:
             loss_window.pop(0)
