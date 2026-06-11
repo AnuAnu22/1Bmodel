@@ -141,12 +141,11 @@ def make_optimizer(params, total_steps: int):
 
 def init_train_state(model: DeepSeek1B, rng: jax.Array):
     from flax.training import train_state
-    dummy  = jnp.ones((1, SEQ_LEN), dtype=jnp.int32)
+    dummy = jnp.ones((1, 1), dtype=jnp.int32))
     params = model.init(rng, dummy)
     total  = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     tx     = make_optimizer(params, total)
-    state = train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
-    return replicate(state)
+    return train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TRAIN STEP  (fixes 2, 3, 7)
@@ -284,7 +283,7 @@ def load_latest_checkpoint(model: DeepSeek1B, rng: jax.Array):
     base  = init_train_state(model, rng)
     ckptr = ocp.PyTreeCheckpointer()
     state = ckptr.restore(str(latest), item=base)
-    state = replicate(state)
+
 
     total = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     # LR at restored step — just for logging; schedule comes from opt_state.count
@@ -456,7 +455,8 @@ def main():
     rng   = jax.random.PRNGKey(0)
 
     state, start_step, tokens_seen, docs_seen = load_latest_checkpoint(model, rng)
-    history = load_history()
+    state = replicate(state)
+	history = load_history()
 
     total_steps = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     print(f"Total steps: {total_steps:,}  |  Resume from: {start_step:,}")
