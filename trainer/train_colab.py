@@ -56,7 +56,8 @@ from trainer.trainer import cross_entropy_loss
 # CONFIG
 # ═══════════════════════════════════════════════════════════════════════════════
 
-DRIVE_DIR      = Path("/content/drive/MyDrive/deepseek1b_run")
+#DRIVE_DIR      = Path("/content/drive/MyDrive/deepseek1b_run")
+DRIVE_DIR = Path("/kaggle/working/deepseek1b_run")
 LOG_FILE       = DRIVE_DIR / "train_log.jsonl"
 CHART_FILE     = DRIVE_DIR / "training_curves.png"
 CKPT_DIR       = DRIVE_DIR / "checkpoints"
