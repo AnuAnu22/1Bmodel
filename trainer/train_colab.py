@@ -87,7 +87,7 @@ DATASET_MIX = [
     ("bigcode/the-stack-v2-train-smol-ids", None,      0.20),
     ("wikimedia/wikipedia",              "20231101.en", 0.10),
 ]
-TOKENIZER_NAME = "gpt2"    # fallback; swap for "meta-llama/Llama-2-7b-hf" if available
+TOKENIZER_NAME = "meta-llama/Meta-Llama-3-8B"    # fallback; swap for "meta-llama/Llama-2-7b-hf" if available
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DEVICES
