@@ -141,7 +141,7 @@ def make_optimizer(params, total_steps: int):
 
 def init_train_state(model: DeepSeek1B, rng: jax.Array):
     from flax.training import train_state
-    dummy = jnp.ones((1, 1), dtype=jnp.int32))
+    dummy = jnp.ones((1, 1), dtype=jnp.bfloat16)
     params = model.init(rng, dummy)
     total  = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     tx     = make_optimizer(params, total)
@@ -198,7 +198,9 @@ def train_step(
         new_carry = jax.tree_util.tree_map(jnp.add, carry, grads)
         return new_carry, loss
 
-    zero_grads = jax.tree_util.tree_map(jnp.zeros_like, state.params)
+    zero_grads = jax.tree_util.tree_map(
+        lambda x: jnp.zeros_like(x, dtype=jnp.bfloat16), state.params
+    )
     rngs       = jax.random.split(step_rng, GRAD_ACCUM)   # one rng per micro-batch
 
     final_grads, per_micro_losses = jax.lax.scan(
@@ -456,7 +458,7 @@ def main():
 
     state, start_step, tokens_seen, docs_seen = load_latest_checkpoint(model, rng)
     state = replicate(state)
-	history = load_history()
+    history = load_history()
 
     total_steps = TOTAL_TOKENS // (SEQ_LEN * BATCH_SIZE)
     print(f"Total steps: {total_steps:,}  |  Resume from: {start_step:,}")
